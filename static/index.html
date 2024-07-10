@@ -351,19 +351,9 @@
         window.onload = initializeGame;
 
         function getRandomArticle() {
-            return fetch('/api/random')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    return data.query.random[0].title;
-                });
+            return fetch('https://en.wikipedia.org/api/rest_v1/page/random/title')
+                .then(response => response.json())
+                .then(data => data.items[0].title);
         }
 
         function startGame() {
@@ -512,47 +502,30 @@
             }
             document.getElementById('loading').style.display = 'block';
             document.getElementById('content').style.display = 'none';
-            fetch(`/api/article?title=${encodeURIComponent(title)}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
+            
+            fetch(`https://en.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`)
+                .then(response => response.text())
+                .then(html => {
                     const contentDiv = document.getElementById('content');
-                    contentDiv.innerHTML = data.parse.text['*'];
+                    contentDiv.innerHTML = html;
                     
-                    // Add Wikipedia styles if they exist
-                    if (data.parse.styles) {
-                        const styleElement = document.createElement('style');
-                        styleElement.textContent = data.parse.styles.map(style => style['*']).join('\n');
-                        contentDiv.prepend(styleElement);
-                    }
-
-                    // Modify all links to use full Wikipedia URLs and our custom navigation
+                    // Modify links
                     document.querySelectorAll('#content a').forEach(link => {
                         const href = link.getAttribute('href');
-                        if (href && href.startsWith('/wiki/')) {
-                            link.href = `https://en.wikipedia.org${href}`;
-                        }
-                        link.onclick = (e) => {
-                            e.preventDefault();
-                            if (gameStarted && !isGoal) {
-                                const articleTitle = link.href.split('/wiki/')[1];
-                                if (articleTitle) {
-                                    loadArticle(decodeURIComponent(articleTitle));
+                        if (href && href.startsWith('./')) {
+                            const articleTitle = decodeURIComponent(href.substring(2));
+                            link.onclick = (e) => {
+                                e.preventDefault();
+                                if (gameStarted && !isGoal) {
+                                    loadArticle(articleTitle);
                                 }
-                            }
-                        };
+                            };
+                        }
                     });
-
+        
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('content').style.display = 'block';
-
+        
                     if (isGoal) {
                         goalPageContent = contentDiv.innerHTML;
                     } else if (gameStarted) {
@@ -583,11 +556,8 @@
                 score++;
                 document.getElementById('score').textContent = score;
             }
-
-            console.log('Current Article:', currentArticle);
-            console.log('Goal Article:', goalArticle);
-
-            if (document.getElementById('content').innerHTML === goalPageContent) {
+        
+            if (currentArticle === goalArticle) {
                 endGame();
             }
         }
